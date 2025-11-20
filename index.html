@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="BingeBase - Your premium movie and TV series search app with advanced features">
+    <meta name="keywords" content="movies, tv shows, series, search, ratings, imdb, streaming">
+    <title>BingeBase - Discover Movies & TV Shows</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Main Container -->
+    <div class="app-container">
+        
+        <!-- Header with Search -->
+        <header class="header" id="header">
+            <div class="header-content">
+                <div class="logo">
+                    <h1>BingeBase</h1>
+                    <span class="tagline">Your Cinema Universe</span>
+                </div>
+                
+                <!-- Search Bar -->
+                <div class="search-container">
+                    <div class="search-wrapper">
+                        <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                        <input 
+                            type="text" 
+                            id="searchInput" 
+                            placeholder="Search movies, series, actors..."
+                            autocomplete="off"
+                        >
+                        <kbd class="search-shortcut">⌘K</kbd>
+                    </div>
+                    
+                    <!-- Search History Dropdown -->
+                    <div class="search-history" id="searchHistory" style="display: none;">
+                        <div class="history-header">
+                            <span>Recent Searches</span>
+                            <button id="clearHistory" class="clear-btn">Clear</button>
+                        </div>
+                        <div class="history-list" id="historyList"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Navigation Tabs -->
+            <nav class="tabs" id="tabs">
+                <button class="tab active" data-tab="movies">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+                        <polyline points="17 2 12 7 7 2"></polyline>
+                    </svg>
+                    Movies
+                </button>
+                <button class="tab" data-tab="tv">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+                        <line x1="17" y1="2" x2="17" y2="7"></line>
+                        <line x1="7" y1="2" x2="7" y2="7"></line>
+                    </svg>
+                    TV Shows
+                </button>
+                <button class="tab" data-tab="favorites">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                    </svg>
+                    My Favorites
+                </button>
+            </nav>
+        </header>
+        
+        <!-- Main Content Area -->
+        <main class="main-content" id="mainContent">
+            
+            <!-- Hero Section (Featured Content) -->
+            <section class="hero" id="hero" style="display: none;">
+                <div class="hero-backdrop" id="heroBackdrop"></div>
+                <div class="hero-content">
+                    <h2 class="hero-title" id="heroTitle"></h2>
+                    <div class="hero-meta" id="heroMeta"></div>
+                    <p class="hero-overview" id="heroOverview"></p>
+                    <div class="hero-actions">
+                        <button class="btn btn-primary" id="heroWatchBtn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                            Watch Trailer
+                        </button>
+                        <button class="btn btn-secondary" id="heroFavBtn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                            </svg>
+                            Add to Favorites
+                        </button>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Filters & Sorting -->
+            <div class="controls" id="controls" style="display: none;">
+                <div class="filters">
+                    <select id="genreFilter" class="filter-select">
+                        <option value="">All Genres</option>
+                    </select>
+                    <select id="yearFilter" class="filter-select">
+                        <option value="">All Years</option>
+                    </select>
+                    <select id="sortBy" class="filter-select">
+                        <option value="popularity.desc">Most Popular</option>
+                        <option value="vote_average.desc">Highest Rated</option>
+                        <option value="release_date.desc">Latest Release</option>
+                        <option value="title.asc">A-Z</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Results Grid -->
+            <div class="results-container">
+                <div class="section-header" id="sectionHeader">
+                    <h2>Discover</h2>
+                </div>
+                <div class="results-grid" id="resultsGrid">
+                    <!-- Content cards will be dynamically inserted here -->
+                </div>
+                <div class="loading" id="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Loading amazing content...</p>
+                </div>
+                <div class="empty-state" id="emptyState" style="display: none;">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                    <h3>No results found</h3>
+                    <p>Try searching for something else</p>
+                </div>
+            </div>
+        </main>
+        
+        <!-- Detail Modal -->
+        <div class="modal" id="detailModal" style="display: none;">
+            <div class="modal-backdrop" id="modalBackdrop"></div>
+            <div class="modal-content">
+                <button class="modal-close" id="modalClose">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+                <div id="modalBody">
+                    <!-- Detail content will be inserted here -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Comparison View -->
+        <div class="comparison-view" id="comparisonView" style="display: none;">
+            <div class="comparison-header">
+                <h2>Compare</h2>
+                <button class="close-comparison" id="closeComparison">Close</button>
+            </div>
+            <div class="comparison-grid" id="comparisonGrid">
+                <!-- Comparison cards will be inserted here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <script src="app.js"></script>
+</body>
+</html>

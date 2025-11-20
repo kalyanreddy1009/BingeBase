@@ -1,0 +1,21 @@
+{
+  "name": "bingebase",
+  "version": "1.0.0",
+  "description": "Premium movie and TV series search app with liquid glass UI",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["movies", "tv", "search", "tmdb"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "dotenv": "^16.3.1",
+    "open": "^10.0.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
