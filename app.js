@@ -1,14 +1,15 @@
 // ============================================
-// BingeBase - Movie & Series Search App
+// BingeBase v1.1 - IMAX Edition
 // ============================================
 
 // Configuration
 const CONFIG = {
-    API_KEY: 'YOUR_TMDB_API_KEY', // Will be replaced by .env
+    API_KEY: localStorage.getItem('tmdb_api_key') || '',
     API_BASE: 'https://api.themoviedb.org/3',
     IMAGE_BASE: 'https://image.tmdb.org/t/p',
     POSTER_SIZE: 'w500',
-    BACKDROP_SIZE: 'original'
+    BACKDROP_SIZE: 'original',
+    VERSION: '1.1.0'
 };
 
 // State Management
@@ -19,11 +20,20 @@ const state = {
     favorites: JSON.parse(localStorage.getItem('favorites')) || [],
     currentPage: 1,
     totalPages: 1,
-    isLoading: false
+    isLoading: false,
+    isSetupComplete: !!localStorage.getItem('tmdb_api_key')
 };
 
 // DOM Elements
 const elements = {
+    setupPage: document.getElementById('setupPage'),
+    setupForm: document.getElementById('setupForm'),
+    apiKeyInput: document.getElementById('apiKeyInput'),
+    setupBtn: document.getElementById('setupBtn'),
+    setupError: document.getElementById('setupError'),
+    countdownScreen: document.getElementById('countdownScreen'),
+    appContainer: document.querySelector('.app-container'),
+    settingsBtn: document.getElementById('settingsBtn'),
     searchInput: document.getElementById('searchInput'),
     searchHistory: document.getElementById('searchHistory'),
     historyList: document.getElementById('historyList'),
@@ -41,17 +51,125 @@ const elements = {
 };
 
 // ============================================
+// Setup & API Key Management
+// ============================================
+
+function showSetupPage() {
+    elements.setupPage.style.display = 'flex';
+    elements.appContainer.style.display = 'none';
+
+    // Animate clapperboard
+    setTimeout(() => {
+        const clapper = document.getElementById('clapperboard');
+        if (clapper) {
+            clapper.classList.add('clap');
+        }
+    }, 500);
+}
+
+function hideSetupPage() {
+    elements.setupPage.style.display = 'none';
+}
+
+async function validateAPIKey(apiKey) {
+    try {
+        const response = await fetch(`${CONFIG.API_BASE}/configuration?api_key=${apiKey}`);
+        return response.ok;
+    } catch (error) {
+        return false;
+    }
+}
+
+elements.setupBtn.addEventListener('click', async () => {
+    const apiKey = elements.apiKeyInput.value.trim();
+
+    if (!apiKey) {
+        showSetupError('Please enter your API key');
+        return;
+    }
+
+    elements.setupBtn.disabled = true;
+    elements.setupBtn.innerHTML = '<span>Validating...</span>';
+
+    const isValid = await validateAPIKey(apiKey);
+
+    if (isValid) {
+        localStorage.setItem('tmdb_api_key', apiKey);
+        CONFIG.API_KEY = apiKey;
+        state.isSetupComplete = true;
+
+        // Hide setup page
+        hideSetupPage();
+
+        // Show IMAX countdown
+        showCountdown();
+    } else {
+        showSetupError('Invalid API key. Please check and try again.');
+        elements.setupBtn.disabled = false;
+        elements.setupBtn.innerHTML = '<span>Launch BingeBase</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+    }
+});
+
+function showSetupError(message) {
+    elements.setupError.textContent = message;
+    elements.setupError.style.display = 'block';
+    setTimeout(() => {
+        elements.setupError.style.display = 'none';
+    }, 3000);
+}
+
+// Settings button to change API key
+elements.settingsBtn.addEventListener('click', () => {
+    const confirmChange = confirm('Do you want to change your API key?');
+    if (confirmChange) {
+        localStorage.removeItem('tmdb_api_key');
+        location.reload();
+    }
+});
+
+// ============================================
+// IMAX Countdown Animation
+// ============================================
+
+function showCountdown() {
+    elements.countdownScreen.style.display = 'flex';
+
+    let count = 3;
+    const countdownNumber = document.getElementById('countdownNumber');
+
+    const countInterval = setInterval(() => {
+        if (count > 0) {
+            countdownNumber.textContent = count;
+            count--;
+        } else {
+            clearInterval(countInterval);
+            // Fade out countdown
+            elements.countdownScreen.style.opacity = '0';
+            setTimeout(() => {
+                elements.countdownScreen.style.display = 'none';
+                elements.appContainer.style.display = 'block';
+                elements.appContainer.style.opacity = '0';
+                setTimeout(() => {
+                    elements.appContainer.style.opacity = '1';
+                }, 50);
+                init();
+            }, 500);
+        }
+    }, 1000);
+}
+
+// ============================================
 // API Functions
 // ============================================
 
 async function fetchFromAPI(endpoint, params = {}) {
     const url = new URL(`${CONFIG.API_BASE}${endpoint}`);
     url.searchParams.append('api_key', CONFIG.API_KEY);
-    
+
     Object.entries(params).forEach(([key, value]) => {
         if (value) url.searchParams.append(key, value);
     });
-    
+
     try {
         const response = await fetch(url);
         if (!response.ok) throw new Error('API request failed');
@@ -89,20 +207,20 @@ let searchTimeout;
 
 elements.searchInput.addEventListener('input', (e) => {
     const query = e.target.value.trim();
-    
+
     clearTimeout(searchTimeout);
-    
+
     if (query.length === 0) {
         loadTrending();
         elements.searchHistory.style.display = 'none';
         return;
     }
-    
+
     if (query.length < 2) return;
-    
+
     searchTimeout = setTimeout(() => {
         performSearch(query);
-    }, 300); // Debounce
+    }, 300);
 });
 
 elements.searchInput.addEventListener('focus', () => {
@@ -121,14 +239,14 @@ elements.searchInput.addEventListener('blur', () => {
 async function performSearch(query) {
     state.searchQuery = query;
     state.isLoading = true;
-    
+
     showLoading();
-    
+
     const type = state.currentTab === 'tv' ? 'tv' : 'movie';
     const data = await searchContent(query, type);
-    
+
     state.isLoading = false;
-    
+
     if (data && data.results) {
         addToSearchHistory(query);
         renderResults(data.results);
@@ -138,11 +256,10 @@ async function performSearch(query) {
     }
 }
 
-// Search History Management
 function addToSearchHistory(query) {
     if (!state.searchHistory.includes(query)) {
         state.searchHistory.unshift(query);
-        state.searchHistory = state.searchHistory.slice(0, 10); // Keep last 10
+        state.searchHistory = state.searchHistory.slice(0, 10);
         localStorage.setItem('searchHistory', JSON.stringify(state.searchHistory));
     }
 }
@@ -179,15 +296,13 @@ elements.clearHistory.addEventListener('click', () => {
 elements.tabs.forEach(tab => {
     tab.addEventListener('click', () => {
         const tabName = tab.dataset.tab;
-        
-        // Update active state
+
         elements.tabs.forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        
+
         state.currentTab = tabName;
         elements.searchInput.value = '';
-        
-        // Load content based on tab
+
         if (tabName === 'favorites') {
             renderFavorites();
         } else {
@@ -203,12 +318,12 @@ elements.tabs.forEach(tab => {
 function renderResults(results) {
     hideLoading();
     hideEmptyState();
-    
+
     if (results.length === 0) {
         showEmptyState();
         return;
     }
-    
+
     elements.resultsGrid.innerHTML = results.map(item => createContentCard(item)).join('');
 }
 
@@ -217,13 +332,13 @@ function createContentCard(item) {
     const date = item.release_date || item.first_air_date;
     const year = date ? new Date(date).getFullYear() : 'N/A';
     const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
-    const posterPath = item.poster_path 
+    const posterPath = item.poster_path
         ? `${CONFIG.IMAGE_BASE}/${CONFIG.POSTER_SIZE}${item.poster_path}`
         : 'https://via.placeholder.com/500x750?text=No+Image';
-    
+
     const isFavorite = state.favorites.some(fav => fav.id === item.id);
     const type = item.media_type || (state.currentTab === 'tv' ? 'tv' : 'movie');
-    
+
     return `
         <div class="content-card" onclick="showDetails(${item.id}, '${type}')">
             <img src="${posterPath}" alt="${title}" class="card-poster" loading="lazy">
@@ -257,7 +372,7 @@ function createContentCard(item) {
 
 function toggleFavorite(id, type, title, poster, rating) {
     const index = state.favorites.findIndex(fav => fav.id === id);
-    
+
     if (index === -1) {
         state.favorites.push({ id, type, title, poster, rating });
         showToast(`Added "${title}" to favorites`, 'success');
@@ -265,10 +380,9 @@ function toggleFavorite(id, type, title, poster, rating) {
         state.favorites.splice(index, 1);
         showToast(`Removed "${title}" from favorites`, 'info');
     }
-    
+
     localStorage.setItem('favorites', JSON.stringify(state.favorites));
-    
-    // Re-render if on favorites tab
+
     if (state.currentTab === 'favorites') {
         renderFavorites();
     }
@@ -276,14 +390,14 @@ function toggleFavorite(id, type, title, poster, rating) {
 
 function renderFavorites() {
     elements.sectionHeader.querySelector('h2').textContent = 'My Favorites';
-    
+
     if (state.favorites.length === 0) {
         showEmptyState();
         elements.emptyState.querySelector('h3').textContent = 'No favorites yet';
         elements.emptyState.querySelector('p').textContent = 'Start adding movies and TV shows to your collection';
         return;
     }
-    
+
     hideEmptyState();
     elements.resultsGrid.innerHTML = state.favorites.map(item => `
         <div class="content-card" onclick="showDetails(${item.id}, '${item.type}')">
@@ -316,22 +430,22 @@ function renderFavorites() {
 
 async function showDetails(id, type) {
     const data = await getDetails(id, type);
-    
+
     if (!data) return;
-    
+
     const title = data.title || data.name;
-    const backdropPath = data.backdrop_path 
+    const backdropPath = data.backdrop_path
         ? `${CONFIG.IMAGE_BASE}/${CONFIG.BACKDROP_SIZE}${data.backdrop_path}`
         : '';
-    const posterPath = data.poster_path 
+    const posterPath = data.poster_path
         ? `${CONFIG.IMAGE_BASE}/${CONFIG.POSTER_SIZE}${data.poster_path}`
         : 'https://via.placeholder.com/500x750?text=No+Image';
-    
+
     const runtime = data.runtime || (data.episode_run_time && data.episode_run_time[0]) || 'N/A';
     const genres = data.genres.map(g => g.name).join(', ');
     const cast = data.credits.cast.slice(0, 10);
     const trailer = data.videos.results.find(v => v.type === 'Trailer' && v.site === 'YouTube');
-    
+
     elements.modalBody.innerHTML = `
         <div class="detail-backdrop" style="background-image: url('${backdropPath}')"></div>
         <div class="detail-content">
@@ -378,7 +492,7 @@ async function showDetails(id, type) {
             </div>
         </div>
     `;
-    
+
     elements.detailModal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
 }
@@ -398,10 +512,10 @@ elements.modalBackdrop.addEventListener('click', closeModal);
 async function searchByActor(actorId, actorName) {
     closeModal();
     showLoading();
-    
+
     const type = state.currentTab === 'tv' ? 'tv' : 'movie';
     const data = await getByActor(actorId, type);
-    
+
     if (data && data.results) {
         renderResults(data.results);
         elements.sectionHeader.querySelector('h2').textContent = `${actorName}'s ${type === 'tv' ? 'TV Shows' : 'Movies'}`;
@@ -416,9 +530,9 @@ async function searchByActor(actorId, actorName) {
 async function loadTrending() {
     const type = state.currentTab === 'tv' ? 'tv' : 'movie';
     showLoading();
-    
+
     const data = await getTrending(type);
-    
+
     if (data && data.results) {
         renderResults(data.results);
         elements.sectionHeader.querySelector('h2').textContent = `Trending ${type === 'tv' ? 'TV Shows' : 'Movies'}`;
@@ -454,9 +568,9 @@ function showToast(message, type = 'info') {
     const toast = document.createElement('div');
     toast.className = 'toast';
     toast.textContent = message;
-    
+
     elements.toastContainer.appendChild(toast);
-    
+
     setTimeout(() => {
         toast.remove();
     }, 3000);
@@ -467,13 +581,11 @@ function showToast(message, type = 'info') {
 // ============================================
 
 document.addEventListener('keydown', (e) => {
-    // CMD/Ctrl + K to focus search
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         elements.searchInput.focus();
     }
-    
-    // Escape to close modal
+
     if (e.key === 'Escape' && elements.detailModal.style.display === 'flex') {
         closeModal();
     }
@@ -484,11 +596,13 @@ document.addEventListener('keydown', (e) => {
 // ============================================
 
 function init() {
-    loadTrending();
-    
-    // Check if API key is set
-    if (CONFIG.API_KEY === 'YOUR_TMDB_API_KEY') {
-        showToast('Please set your TMDb API key in the .env file', 'error');
+    if (!state.isSetupComplete) {
+        showSetupPage();
+    } else {
+        hideSetupPage();
+        elements.countdownScreen.style.display = 'none';
+        elements.appContainer.style.display = 'block';
+        loadTrending();
     }
 }
 
