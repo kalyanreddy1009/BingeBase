@@ -1,665 +1,78 @@
-// ============================================
-// BingeBase v1.1 - IMAX Edition
-// ============================================
-
+// BingeBase v2.0 Ultra - God Mode Edition
 // Configuration
-const CONFIG = {
-    API_KEY: localStorage.getItem('tmdb_api_key') || '',
-    OMDB_API_KEY: localStorage.getItem('omdb_api_key') || '',
-    API_BASE: 'https://api.themoviedb.org/3',
-    OMDB_BASE: 'https://www.omdbapi.com',
-    IMAGE_BASE: 'https://image.tmdb.org/t/p',
-    POSTER_SIZE: 'w500',
-    BACKDROP_SIZE: 'original',
-    VERSION: '1.1.1'
-};
+const CONFIG = { API_KEY: localStorage.getItem('tmdb_api_key') || '', OMDB_KEY: localStorage.getItem('omdb_api_user'), API_BASE: 'https://api.themoviedb.org/3', OMDB_BASE: 'https://www.omdbapi.com', IMAGE_BASE: 'https://image.tmdb.org/t/p', POSTER: 'w500', BACKDROP: 'original' };
 
-// State Management
-const state = {
-    currentTab: 'movies',
-    searchQuery: '',
-    searchHistory: JSON.parse(localStorage.getItem('searchHistory')) || [],
-    favorites: JSON.parse(localStorage.getItem('favorites')) || [],
-    currentPage: 1,
-    totalPages: 1,
-    isLoading: false,
-    isSetupComplete: !!localStorage.getItem('tmdb_api_key')
-};
+// State
+const state = { currentTab: 'home', favorites: JSON.parse(localStorage.getItem('favorites')) || [], searchHistory: JSON.parse(localStorage.getItem('search_history')) || [], imdbCache: JSON.parse(localStorage.getItem('imdb_cache')) || {} };
 
 // DOM Elements
-const elements = {
-    setupPage: document.getElementById('setupPage'),
-    setupForm: document.getElementById('setupForm'),
-    apiKeyInput: document.getElementById('apiKeyInput'),
-    setupBtn: document.getElementById('setupBtn'),
-    setupError: document.getElementById('setupError'),
-    countdownScreen: document.getElementById('countdownScreen'),
-    appContainer: document.querySelector('.app-container'),
-    settingsBtn: document.getElementById('settingsBtn'),
-    searchInput: document.getElementById('searchInput'),
-    searchHistory: document.getElementById('searchHistory'),
-    historyList: document.getElementById('historyList'),
-    clearHistory: document.getElementById('clearHistory'),
-    tabs: document.querySelectorAll('.tab'),
-    resultsGrid: document.getElementById('resultsGrid'),
-    loading: document.getElementById('loading'),
-    emptyState: document.getElementById('emptyState'),
-    sectionHeader: document.getElementById('sectionHeader'),
-    detailModal: document.getElementById('detailModal'),
-    modalClose: document.getElementById('modalClose'),
-    modalBackdrop: document.getElementById('modalBackdrop'),
-    modalBody: document.getElementById('modalBody'),
-    toastContainer: document.getElementById('toastContainer')
-};
+const el = { setupPage: document.getElementById('setupPage'), tmdbKey: document.getElementById('tmdbKey'), omdbKey: document.getElementById('omdbKey'), setupBtn: document.getElementById('setupBtn'), setupError: document.getElementById('setupError'), clapperboard: document.getElementById('clapperboard'), countdownScreen: document.getElementById('countdownScreen'), countdownNumber: document.getElementById('countdownNumber'), appContainer: document.getElementById('appContainer'), searchInput: document.getElementById('searchInput'), tabs: document.querySelectorAll('.tab'), hero: document.getElementById('hero'), trendingMoviesContent: document.getElementById('trendingMoviesContent'), trendingSeriesContent: document.getElementById('trendingSeriesContent'), categoryGrid: document.getElementById('categoryGrid'), topRatedMoviesContent: document.getElementById('topRatedMoviesContent'), topRatedSeriesContent: document.getElementById('topRatedSeriesContent'), detailModal: document.getElementById('detailModal'), modalBackdrop: document.getElementById('modalBackdrop'), modalClose: document.getElementById('modalClose'), modalBody: document.getElementById('modalBody'), toastContainer: document.getElementById('toastContainer'), settingsBtn: document.getElementById('settingsBtn'), loadingState: document.getElementById('loadingState'), emptyState: document.getElementById('emptyState') };
 
-// ============================================
-// Setup & API Key Management
-// ============================================
+// Setup Page
+function showSetupPage() { el.setupPage.style.display = 'flex'; el.appContainer.style.display = 'none'; setTimeout(() => el.clapperboard.classList.add('clap'), 500) }
 
-function showSetupPage() {
-    elements.setupPage.style.display = 'flex';
-    elements.appContainer.style.display = 'none';
+async function validateTMDb(key) { try { const r = await fetch(`${CONFIG.API_BASE}/configuration?api_key=${key}`); return r.ok } catch { return false } }
 
-    // Animate clapperboard
-    setTimeout(() => {
-        const clapper = document.getElementById('clapperboard');
-        if (clapper) {
-            clapper.classList.add('clap');
-        }
-    }, 500);
-}
+el.setupBtn.addEventListener('click', async () => { const tmdb = el.tmdbKey.value.trim(), omdb = el.omdbKey.value.trim(); if (!tmdb) { showError('TMDb API key required'); return } el.setupBtn.disabled = true; el.setupBtn.innerHTML = '<span>Validating...</span>'; const valid = await validateTMDb(tmdb); if (valid) { localStorage.setItem('tmdb_api_key', tmdb); CONFIG.API_KEY = tmdb; if (omdb) { localStorage.setItem('omdb_api_key', omdb); CONFIG.OMDB_KEY = omdb } hideSetup(); showCountdown() } else { showError('Invalid TMDb API key'); el.setupBtn.disabled = false; el.setupBtn.innerHTML = '<span>Launch Experience</span>' } });
 
-function hideSetupPage() {
-    elements.setupPage.style.display = 'none';
-}
+function showError(msg) { el.setupError.textContent = msg; el.setupError.style.display = 'block'; setTimeout(() => el.setupError.style.display = 'none', 3000) }
 
-async function validateAPIKey(apiKey) {
-    try {
-        const response = await fetch(`${CONFIG.API_BASE}/configuration?api_key=${apiKey}`);
-        return response.ok;
-    } catch (error) {
-        return false;
-    }
-}
+function hideSetup() { el.setupPage.style.display = 'none' }
 
-elements.setupBtn.addEventListener('click', async () => {
-    const apiKey = elements.apiKeyInput.value.trim();
-    const omdbKey = document.getElementById('omdbKeyInput').value.trim();
+// Countdown
+function showCountdown() { el.countdownScreen.style.display = 'flex'; let count = 3; const interval = setInterval(() => { if (count > 0) { el.countdownNumber.textContent = count; count-- } else { clearInterval(interval); el.countdownScreen.style.opacity = '0'; setTimeout(() => { el.countdownScreen.style.display = 'none'; el.appContainer.style.display = 'block'; setTimeout(() => el.appContainer.style.opacity = '1', 50); init() }, 500) } }, 1000) }
 
-    if (!apiKey) {
-        showSetupError('Please enter your TMDb API key');
-        return;
-    }
-
-    elements.setupBtn.disabled = true;
-    elements.setupBtn.innerHTML = '<span>Validating...</span>';
-
-    const isValid = await validateAPIKey(apiKey);
-
-    if (isValid) {
-        localStorage.setItem('tmdb_api_key', apiKey);
-        CONFIG.API_KEY = apiKey;
-
-        // Save OMDb key if provided (optional)
-        if (omdbKey) {
-            localStorage.setItem('omdb_api_key', omdbKey);
-            CONFIG.OMDB_API_KEY = omdbKey;
-        }
-
-        state.isSetupComplete = true;
-
-        // Hide setup page
-        hideSetupPage();
-
-        // Show IMAX countdown
-        showCountdown();
-    } else {
-        showSetupError('Invalid TMDb API key. Please check and try again.');
-        elements.setupBtn.disabled = false;
-        elements.setupBtn.innerHTML = '<span>Launch BingeBase</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
-    }
-});
-
-function showSetupError(message) {
-    elements.setupError.textContent = message;
-    elements.setupError.style.display = 'block';
-    setTimeout(() => {
-        elements.setupError.style.display = 'none';
-    }, 3000);
-}
-
-// Settings button to change API key
-elements.settingsBtn.addEventListener('click', () => {
-    const confirmChange = confirm('Do you want to change your API key?');
-    if (confirmChange) {
-        localStorage.removeItem('tmdb_api_key');
-        location.reload();
-    }
-});
-
-// ============================================
-// IMAX Countdown Animation
-// ============================================
-
-function showCountdown() {
-    elements.countdownScreen.style.display = 'flex';
-
-    let count = 3;
-    const countdownNumber = document.getElementById('countdownNumber');
-
-    const countInterval = setInterval(() => {
-        if (count > 0) {
-            countdownNumber.textContent = count;
-            count--;
-        } else {
-            clearInterval(countInterval);
-            // Fade out countdown
-            elements.countdownScreen.style.opacity = '0';
-            setTimeout(() => {
-                elements.countdownScreen.style.display = 'none';
-                elements.appContainer.style.display = 'block';
-                elements.appContainer.style.opacity = '0';
-                setTimeout(() => {
-                    elements.appContainer.style.opacity = '1';
-                }, 50);
-                init();
-            }, 500);
-        }
-    }, 1000);
-}
-
-// ============================================
 // API Functions
-// ============================================
+async function api(endpoint, params = {}) { const url = new URL(`${CONFIG.API_BASE}${endpoint}`); url.searchParams.append('api_key', CONFIG.API_KEY); Object.entries(params).forEach(([k, v]) => v && url.searchParams.append(k, v)); try { const r = await fetch(url); if (!r.ok) throw new Error(); return await r.json() } catch { showToast('Failed to fetch data', 'error'); return null } }
 
-async function fetchFromAPI(endpoint, params = {}) {
-    const url = new URL(`${CONFIG.API_BASE}${endpoint}`);
-    url.searchParams.append('api_key', CONFIG.API_KEY);
+async function getTrending(type = 'movie') { return await api(`/trending/${type}/week`) }
+async function getTopRated(type = 'movie') { return await api(`/${type}/top_rated`) }
+async function getDetails(id, type = 'movie') { return await api(`/${type}/${id}`, { append_to_response: 'credits,videos' }) }
+async function getGenres(type = 'movie') { return await api(`/genre/${type}/list`) }
+async function search(query, type = 'movie') { return await api(`/search/${type}`, { query }) }
 
-    Object.entries(params).forEach(([key, value]) => {
-        if (value) url.searchParams.append(key, value);
-    });
+// OMDb - IMDb Ratings
+async function getIMDb(imdbId) { if (state.imdbCache[imdbId]) return state.imdbCache[imdbId]; if (!CONFIG.OMDB_KEY) return null; try { const r = await fetch(`${CONFIG.OMDB_BASE}/?apikey=${CONFIG.OMDB_KEY}&i=${imdbId}`); const data = await r.json(); if (data.Response === 'True' && data.imdbRating !== 'N/A') { state.imdbCache[imdbId] = data.imdbRating; localStorage.setItem('imdb_cache', JSON.stringify(state.imdbCache)); return data.imdbRating } } catch { } return null }
 
-    try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('API request failed');
-        return await response.json();
-    } catch (error) {
-        console.error('API Error:', error);
-        showToast('Failed to fetch data. Please try again.', 'error');
-        return null;
-    }
-}
+// Render Functions
+function createCard(item, showNumber = false, number = 0) { const title = item.title || item.name; const year = (item.release_date || item.first_air_date || '').split('-')[0]; const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A'; const poster = item.poster_path ? `${CONFIG.IMAGE_BASE}/${CONFIG.POSTER}${item.poster_path}` : 'https://via.placeholder.com/500x750?text=No+Image'; const type = item.media_type || (state.currentTab === 'series' ? 'tv' : 'movie'); return `<div class="movie-card" onclick="showDetails(${item.id},'${type}')">${showNumber ? `<div class="number-badge">${number}</div>` : ''}<img src="${poster}" alt="${title}" class="movie-poster" loading="lazy"><div class="movie-info"><div class="movie-title">${title}</div><div class="movie-meta"><span>${year || 'N/A'}</span><span class="rating"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>${rating}</span></div></div></div>` }
 
-async function searchContent(query, type = 'movie', page = 1) {
-    const endpoint = `/search/${type}`;
-    return await fetchFromAPI(endpoint, { query, page });
-}
+function renderRow(container, items, showNumbers = false) { container.innerHTML = items.slice(0, 10).map((item, i) => createCard(item, showNumbers, i + 1)).join('') }
 
-async function getTrending(type = 'movie') {
-    return await fetchFromAPI(`/trending/${type}/week`);
-}
+// Load Content
+async function loadHome() { showLoading(); const [trendingMovies, trendingSeries, topMovies, topSeries] = await Promise.all([getTrending('movie'), getTrending('tv'), getTopRated('movie'), getTopRated('tv')]); if (trendingMovies) renderRow(el.trendingMoviesContent, trendingMovies.results, true); if (trendingSeries) renderRow(el.trendingSeriesContent, trendingSeries.results, true); if (topMovies) renderRow(el.topRatedMoviesContent, topMovies.results, true); if (topSeries) renderRow(el.topRatedSeriesContent, topSeries.results, true); loadGenres(); hideLoading(); loadHero(trendingMovies?.results[0]) }
 
-async function getDetails(id, type = 'movie') {
-    const data = await fetchFromAPI(`/${type}/${id}`, { append_to_response: 'credits,videos' });
-    return data;
-}
+async function loadGenres() { const genres = [{ id: 28, name: 'Action', icon: '💥' }, { id: 35, name: 'Comedy', icon: '😂' }, { id: 18, name: 'Drama', icon: '🎭' }, { id: 27, name: 'Horror', icon: '👻' }, { id: 878, name: 'Sci-Fi', icon: '🚀' }, { id: 10749, name: 'Romance', icon: '💕' }, { id: 53, name: 'Thriller', icon: '🔫' }, { id: 16, name: 'Animation', icon: '🎨' }, { id: 99, name: 'Documentary', icon: '📽️' }, { id: 14, name: 'Fantasy', icon: '🧙' }, { id: 9648, name: 'Mystery', icon: '🔍' }]; el.categoryGrid.innerHTML = genres.map(g => `<div class="category-card" style="background:linear-gradient(135deg,rgba(94,92,230,0.2),rgba(118,75,162,0.2))" onclick="loadGenre(${g.id},'${g.name}')"><div class="category-icon">${g.icon}</div><div class="category-name">${g.name}</div></div>`).join('') }
 
-async function getByActor(actorId, type = 'movie') {
-    return await fetchFromAPI(`/discover/${type}`, { with_cast: actorId });
-}
+function loadHero(item) { if (!item) return; const backdrop = item.backdrop_path ? `${CONFIG.IMAGE_BASE}/${CONFIG.BACKDROP}${item.backdrop_path}` : ''; el.hero.style.backgroundImage = `url(${backdrop})`; el.hero.style.backgroundSize = 'cover'; el.hero.style.backgroundPosition = 'center' }
 
-// ============================================
-// OMDb API - IMDb Ratings (Cached)
-// ============================================
-
-const imdbCache = JSON.parse(localStorage.getItem('imdb_ratings')) || {};
-
-async function getIMDbRating(imdbId) {
-    // Check cache first
-    if (imdbCache[imdbId]) {
-        return imdbCache[imdbId];
-    }
-
-    // No OMDb key? Skip gracefully
-    if (!CONFIG.OMDB_API_KEY) {
-        return null;
-    }
-
-    try {
-        const response = await fetch(`${CONFIG.OMDB_BASE}/?apikey=${CONFIG.OMDB_API_KEY}&i=${imdbId}`);
-        const data = await response.json();
-
-        if (data.Response === 'True' && data.imdbRating && data.imdbRating !== 'N/A') {
-            const rating = data.imdbRating;
-            // Cache it forever
-            imdbCache[imdbId] = rating;
-            localStorage.setItem('imdb_ratings', JSON.stringify(imdbCache));
-            return rating;
-        }
-    } catch (error) {
-        console.warn('OMDb API call failed:', error);
-    }
-
-    return null;
-}
-
-// ============================================
-// Search Functionality
-// ============================================
-
-let searchTimeout;
-
-elements.searchInput.addEventListener('input', (e) => {
-    const query = e.target.value.trim();
-
-    clearTimeout(searchTimeout);
-
-    if (query.length === 0) {
-        loadTrending();
-        elements.searchHistory.style.display = 'none';
-        return;
-    }
-
-    if (query.length < 2) return;
-
-    searchTimeout = setTimeout(() => {
-        performSearch(query);
-    }, 300);
-});
-
-elements.searchInput.addEventListener('focus', () => {
-    if (state.searchHistory.length > 0 && !elements.searchInput.value) {
-        renderSearchHistory();
-        elements.searchHistory.style.display = 'block';
-    }
-});
-
-elements.searchInput.addEventListener('blur', () => {
-    setTimeout(() => {
-        elements.searchHistory.style.display = 'none';
-    }, 200);
-});
-
-async function performSearch(query) {
-    state.searchQuery = query;
-    state.isLoading = true;
-
-    showLoading();
-
-    const type = state.currentTab === 'tv' ? 'tv' : 'movie';
-    const data = await searchContent(query, type);
-
-    state.isLoading = false;
-
-    if (data && data.results) {
-        addToSearchHistory(query);
-        renderResults(data.results);
-        elements.sectionHeader.querySelector('h2').textContent = `Results for "${query}"`;
-    } else {
-        showEmptyState();
-    }
-}
-
-function addToSearchHistory(query) {
-    if (!state.searchHistory.includes(query)) {
-        state.searchHistory.unshift(query);
-        state.searchHistory = state.searchHistory.slice(0, 10);
-        localStorage.setItem('searchHistory', JSON.stringify(state.searchHistory));
-    }
-}
-
-function renderSearchHistory() {
-    elements.historyList.innerHTML = state.searchHistory.map(query => `
-        <div class="history-item" onclick="searchFromHistory('${query}')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-            </svg>
-            ${query}
-        </div>
-    `).join('');
-}
-
-function searchFromHistory(query) {
-    elements.searchInput.value = query;
-    performSearch(query);
-    elements.searchHistory.style.display = 'none';
-}
-
-elements.clearHistory.addEventListener('click', () => {
-    state.searchHistory = [];
-    localStorage.removeItem('searchHistory');
-    elements.searchHistory.style.display = 'none';
-    showToast('Search history cleared', 'success');
-});
-
-// ============================================
-// Tab Navigation
-// ============================================
-
-elements.tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-        const tabName = tab.dataset.tab;
-
-        elements.tabs.forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-
-        state.currentTab = tabName;
-        elements.searchInput.value = '';
-
-        if (tabName === 'favorites') {
-            renderFavorites();
-        } else {
-            loadTrending();
-        }
-    });
-});
-
-// ============================================
-// Rendering Functions
-// ============================================
-
-function renderResults(results) {
-    hideLoading();
-    hideEmptyState();
-
-    if (results.length === 0) {
-        showEmptyState();
-        return;
-    }
-
-    elements.resultsGrid.innerHTML = results.map(item => createContentCard(item)).join('');
-}
-
-function createContentCard(item) {
-    const title = item.title || item.name;
-    const date = item.release_date || item.first_air_date;
-    const year = date ? new Date(date).getFullYear() : 'N/A';
-    const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
-    const posterPath = item.poster_path
-        ? `${CONFIG.IMAGE_BASE}/${CONFIG.POSTER_SIZE}${item.poster_path}`
-        : 'https://via.placeholder.com/500x750?text=No+Image';
-
-    const isFavorite = state.favorites.some(fav => fav.id === item.id);
-    const type = item.media_type || (state.currentTab === 'tv' ? 'tv' : 'movie');
-
-    return `
-        <div class="content-card" onclick="showDetails(${item.id}, '${type}')">
-            <img src="${posterPath}" alt="${title}" class="card-poster" loading="lazy">
-            <div class="card-info">
-                <h3 class="card-title">${title}</h3>
-                <div class="card-meta">
-                    <span class="card-year">${year}</span>
-                    <span class="card-rating">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-                        </svg>
-                        ${rating}
-                    </span>
-                </div>
-                <div class="card-actions">
-                    <button class="icon-btn ${isFavorite ? 'active' : ''}" 
-                            onclick="event.stopPropagation(); toggleFavorite(${item.id}, '${type}', '${title.replace(/'/g, "\\'")}', '${posterPath}', ${rating})">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="${isFavorite ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
-                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-// ============================================
-// Favorites Management
-// ============================================
-
-function toggleFavorite(id, type, title, poster, rating) {
-    const index = state.favorites.findIndex(fav => fav.id === id);
-
-    if (index === -1) {
-        state.favorites.push({ id, type, title, poster, rating });
-        showToast(`Added "${title}" to favorites`, 'success');
-    } else {
-        state.favorites.splice(index, 1);
-        showToast(`Removed "${title}" from favorites`, 'info');
-    }
-
-    localStorage.setItem('favorites', JSON.stringify(state.favorites));
-
-    if (state.currentTab === 'favorites') {
-        renderFavorites();
-    }
-}
-
-function renderFavorites() {
-    elements.sectionHeader.querySelector('h2').textContent = 'My Favorites';
-
-    if (state.favorites.length === 0) {
-        showEmptyState();
-        elements.emptyState.querySelector('h3').textContent = 'No favorites yet';
-        elements.emptyState.querySelector('p').textContent = 'Start adding movies and TV shows to your collection';
-        return;
-    }
-
-    hideEmptyState();
-    elements.resultsGrid.innerHTML = state.favorites.map(item => `
-        <div class="content-card" onclick="showDetails(${item.id}, '${item.type}')">
-            <img src="${item.poster}" alt="${item.title}" class="card-poster" loading="lazy">
-            <div class="card-info">
-                <h3 class="card-title">${item.title}</h3>
-                <div class="card-meta">
-                    <span class="card-rating">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-                        </svg>
-                        ${item.rating}
-                    </span>
-                </div>
-                <div class="card-actions">
-                    <button class="icon-btn active" onclick="event.stopPropagation(); toggleFavorite(${item.id}, '${item.type}', '${item.title.replace(/'/g, "\\'")}', '${item.poster}', ${item.rating})">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2">
-                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-        </div>
-    `).join('');
-}
-
-// ============================================
 // Detail Modal
-// ============================================
+async function showDetails(id, type) { const data = await getDetails(id, type); if (!data) return; const title = data.title || data.name; const backdrop = data.backdrop_path ? `${CONFIG.IMAGE_BASE}/${CONFIG.BACKDROP}${data.backdrop_path}` : ''; const poster = data.poster_path ? `${CONFIG.IMAGE_BASE}/${CONFIG.POSTER}${data.poster_path}` : ''; const tmdbRating = data.vote_average.toFixed(1); let imdbRating = null; if (data.imdb_id && CONFIG.OMDB_KEY) imdbRating = await getIMDb(data.imdb_id); const trailer = data.videos?.results?.find(v => v.type === 'Trailer' && v.site === 'YouTube'); el.modalBody.innerHTML = `<div class="detail-backdrop" style="background-image:url(${backdrop});background-size:cover;background-position:center;height:400px"></div><div class="detail-content" style="padding:2rem"><div class="detail-header" style="display:flex;gap:2rem;margin-top:-100px;position:relative"><img src="${poster}" alt="${title}" style="width:200px;border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,0.8)"><div class="detail-info"><h2 style="font-size:2.5rem;margin-bottom:1rem">${title}</h2><div style="display:flex;gap:1rem;margin-bottom:1rem"><span style="background:rgba(255,255,255,0.1);padding:0.5rem 1rem;border-radius:8px">⭐ ${tmdbRating}</span>${imdbRating ? `<span style="background:#f5c518;color:#000;padding:0.5rem 1rem;border-radius:8px;font-weight:700">IMDb ${imdbRating}</span>` : ''}</div><p style="color:var(--gray-300);line-height:1.8">${data.overview}</p>${trailer ? `<div style="margin-top:1.5rem"><iframe width="100%" height="400" src="https://www.youtube.com/embed/${trailer.key}" frameborder="0" allowfullscreen style="border-radius:12px"></iframe></div>` : ''}</div></div></div>`; el.detailModal.classList.add('show') }
 
-async function showDetails(id, type) {
-    const data = await getDetails(id, type);
+function closeModal() { el.detailModal.classList.remove('show') }
+el.modalClose.addEventListener('click', closeModal);
+el.modalBackdrop.addEventListener('click', closeModal);
 
-    if (!data) return;
+// Tabs
+el.tabs.forEach(tab => tab.addEventListener('click', () => { el.tabs.forEach(t => t.classList.remove('active')); tab.classList.add('active'); state.currentTab = tab.dataset.tab; if (state.currentTab === 'home') loadHome() }));
 
-    const title = data.title || data.name;
-    const backdropPath = data.backdrop_path
-        ? `${CONFIG.IMAGE_BASE}/${CONFIG.BACKDROP_SIZE}${data.backdrop_path}`
-        : '';
-    const posterPath = data.poster_path
-        ? `${CONFIG.IMAGE_BASE}/${CONFIG.POSTER_SIZE}${data.poster_path}`
-        : 'https://via.placeholder.com/500x750?text=No+Image';
+// Search
+let searchTimeout;
+el.searchInput.addEventListener('input', e => { clearTimeout(searchTimeout); const query = e.target.value.trim(); if (query.length < 2) return; searchTimeout = setTimeout(async () => { const results = await search(query, 'movie'); if (results) { el.trendingMoviesContent.innerHTML = results.results.map(item => createCard(item)).join('') } }, 300) });
 
-    const runtime = data.runtime || (data.episode_run_time && data.episode_run_time[0]) || 'N/A';
-    const genres = data.genres.map(g => g.name).join(', ');
-    const cast = data.credits.cast.slice(0, 10);
-    const trailer = data.videos.results.find(v => v.type === 'Trailer' && v.site === 'YouTube');
+// Settings
+el.settingsBtn.addEventListener('click', () => { if (confirm('Change API keys?')) { localStorage.removeItem('tmdb_api_key'); localStorage.removeItem('omdb_api_key'); location.reload() } });
 
-    // TMDb rating
-    const tmdbRating = data.vote_average.toFixed(1);
+// Helpers
+function showLoading() { el.loadingState.classList.add('show') }
+function hideLoading() { el.loadingState.classList.remove('show') }
+function showToast(msg, type = 'info') { const toast = document.createElement('div'); toast.className = 'toast'; toast.textContent = msg; el.toastContainer.appendChild(toast); setTimeout(() => toast.remove(), 3000) }
 
-    // Fetch IMDb rating (only if we have IMDb ID and OMDb key)
-    let imdbRating = null;
-    if (data.imdb_id && CONFIG.OMDB_API_KEY) {
-        imdbRating = await getIMDbRating(data.imdb_id);
-    }
-
-    elements.modalBody.innerHTML = `
-        <div class="detail-backdrop" style="background-image: url('${backdropPath}')"></div>
-        <div class="detail-content">
-            <div class="detail-header">
-                <img src="${posterPath}" alt="${title}" class="detail-poster">
-                <div class="detail-info">
-                    <h2 class="detail-title">${title}</h2>
-                    <div class="detail-meta">
-                        <span>${new Date(data.release_date || data.first_air_date).getFullYear()}</span>
-                        <span>•</span>
-                        <span>${runtime} min</span>
-                        <span>•</span>
-                        <span class="rating-badge tmdb-badge">⭐ ${tmdbRating}</span>
-                        ${imdbRating ? `<span class="rating-badge imdb-badge">IMDb ${imdbRating}</span>` : ''}
-                    </div>
-                    <div class="detail-genres">${genres}</div>
-                    <p class="detail-overview">${data.overview}</p>
-                    ${trailer ? `
-                        <div class="trailer-container">
-                            <iframe 
-                                width="100%" 
-                                height="400" 
-                                src="https://www.youtube.com/embed/${trailer.key}" 
-                                frameborder="0" 
-                                allowfullscreen
-                            ></iframe>
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-            
-            <div class="detail-section">
-                <h3>Cast</h3>
-                <div class="cast-grid">
-                    ${cast.map(actor => `
-                        <div class="cast-card" onclick="searchByActor(${actor.id}, '${actor.name}')">
-                            <img src="${actor.profile_path ? CONFIG.IMAGE_BASE + '/w185' + actor.profile_path : 'https://via.placeholder.com/185x278?text=No+Image'}" alt="${actor.name}">
-                            <div class="cast-info">
-                                <div class="cast-name">${actor.name}</div>
-                                <div class="cast-character">${actor.character}</div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        </div>
-    `;
-
-    elements.detailModal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-}
-
-function closeModal() {
-    elements.detailModal.style.display = 'none';
-    document.body.style.overflow = '';
-}
-
-elements.modalClose.addEventListener('click', closeModal);
-elements.modalBackdrop.addEventListener('click', closeModal);
-
-// ============================================
-// Actor-Based Search
-// ============================================
-
-async function searchByActor(actorId, actorName) {
-    closeModal();
-    showLoading();
-
-    const type = state.currentTab === 'tv' ? 'tv' : 'movie';
-    const data = await getByActor(actorId, type);
-
-    if (data && data.results) {
-        renderResults(data.results);
-        elements.sectionHeader.querySelector('h2').textContent = `${actorName}'s ${type === 'tv' ? 'TV Shows' : 'Movies'}`;
-        showToast(`Showing content featuring ${actorName}`, 'info');
-    }
-}
-
-// ============================================
-// Loading Trending Content
-// ============================================
-
-async function loadTrending() {
-    const type = state.currentTab === 'tv' ? 'tv' : 'movie';
-    showLoading();
-
-    const data = await getTrending(type);
-
-    if (data && data.results) {
-        renderResults(data.results);
-        elements.sectionHeader.querySelector('h2').textContent = `Trending ${type === 'tv' ? 'TV Shows' : 'Movies'}`;
-    }
-}
-
-// ============================================
-// UI Helper Functions
-// ============================================
-
-function showLoading() {
-    elements.loading.style.display = 'block';
-    elements.resultsGrid.style.display = 'none';
-    elements.emptyState.style.display = 'none';
-}
-
-function hideLoading() {
-    elements.loading.style.display = 'none';
-    elements.resultsGrid.style.display = 'grid';
-}
-
-function showEmptyState() {
-    elements.emptyState.style.display = 'block';
-    elements.resultsGrid.style.display = 'none';
-    elements.loading.style.display = 'none';
-}
-
-function hideEmptyState() {
-    elements.emptyState.style.display = 'none';
-}
-
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = 'toast';
-    toast.textContent = message;
-
-    elements.toastContainer.appendChild(toast);
-
-    setTimeout(() => {
-        toast.remove();
-    }, 3000);
-}
-
-// ============================================
 // Keyboard Shortcuts
-// ============================================
+document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); el.searchInput.focus() } if (e.key === 'Escape' && el.detailModal.classList.contains('show')) closeModal() });
 
-document.addEventListener('keydown', (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        elements.searchInput.focus();
-    }
+// Init
+function init() { if (!CONFIG.API_KEY) { showSetupPage() } else { el.setupPage.style.display = 'none'; el.countdownScreen.style.display = 'none'; el.appContainer.style.display = 'block'; el.appContainer.style.opacity = '1'; loadHome() } }
 
-    if (e.key === 'Escape' && elements.detailModal.style.display === 'flex') {
-        closeModal();
-    }
-});
-
-// ============================================
-// Initialize App
-// ============================================
-
-function init() {
-    if (!state.isSetupComplete) {
-        showSetupPage();
-    } else {
-        hideSetupPage();
-        elements.countdownScreen.style.display = 'none';
-        elements.appContainer.style.display = 'block';
-        loadTrending();
-    }
-}
-
-// Start the app
-init();
+// Start
+CONFIG.API_KEY ? init() : showSetupPage();
