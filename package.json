@@ -1,7 +1,19 @@
+{
+  "name": "bingebase",
+  "version": "2.0.0",
+  "description": "BingeBase v2.0 - Ultra Premium Cinema Experience",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
     "movies",
     "tv",
     "search",
-    "tmdb"
+    "tmdb",
+    "netflix",
+    "cinema"
   ],
   "author": "",
   "license": "MIT",
