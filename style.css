@@ -1007,3 +1007,8 @@ body {
 .reel-loader::after{bottom:10px;left:50%;transform:translateX(-50%);}
 
 .app-container{transition:opacity 0.5s ease-in;}
+
+/* IMDb Badge */
+.imdb-badge {background:#f5c518;color:#000!important;font-weight:700;padding:0.3rem 0.75rem;border-radius:var(--radius-sm);}
+.tmdb-badge {background:var(--glass-bg);}
+.input-label{display:block;font-size:0.875rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.05em;}

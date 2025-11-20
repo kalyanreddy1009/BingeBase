@@ -5,11 +5,13 @@
 // Configuration
 const CONFIG = {
     API_KEY: localStorage.getItem('tmdb_api_key') || '',
+    OMDB_API_KEY: localStorage.getItem('omdb_api_key') || '',
     API_BASE: 'https://api.themoviedb.org/3',
+    OMDB_BASE: 'https://www.omdbapi.com',
     IMAGE_BASE: 'https://image.tmdb.org/t/p',
     POSTER_SIZE: 'w500',
     BACKDROP_SIZE: 'original',
-    VERSION: '1.1.0'
+    VERSION: '1.1.1'
 };
 
 // State Management
@@ -82,9 +84,10 @@ async function validateAPIKey(apiKey) {
 
 elements.setupBtn.addEventListener('click', async () => {
     const apiKey = elements.apiKeyInput.value.trim();
+    const omdbKey = document.getElementById('omdbKeyInput').value.trim();
 
     if (!apiKey) {
-        showSetupError('Please enter your API key');
+        showSetupError('Please enter your TMDb API key');
         return;
     }
 
@@ -96,6 +99,13 @@ elements.setupBtn.addEventListener('click', async () => {
     if (isValid) {
         localStorage.setItem('tmdb_api_key', apiKey);
         CONFIG.API_KEY = apiKey;
+
+        // Save OMDb key if provided (optional)
+        if (omdbKey) {
+            localStorage.setItem('omdb_api_key', omdbKey);
+            CONFIG.OMDB_API_KEY = omdbKey;
+        }
+
         state.isSetupComplete = true;
 
         // Hide setup page
@@ -104,7 +114,7 @@ elements.setupBtn.addEventListener('click', async () => {
         // Show IMAX countdown
         showCountdown();
     } else {
-        showSetupError('Invalid API key. Please check and try again.');
+        showSetupError('Invalid TMDb API key. Please check and try again.');
         elements.setupBtn.disabled = false;
         elements.setupBtn.innerHTML = '<span>Launch BingeBase</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
     }
@@ -197,6 +207,41 @@ async function getDetails(id, type = 'movie') {
 
 async function getByActor(actorId, type = 'movie') {
     return await fetchFromAPI(`/discover/${type}`, { with_cast: actorId });
+}
+
+// ============================================
+// OMDb API - IMDb Ratings (Cached)
+// ============================================
+
+const imdbCache = JSON.parse(localStorage.getItem('imdb_ratings')) || {};
+
+async function getIMDbRating(imdbId) {
+    // Check cache first
+    if (imdbCache[imdbId]) {
+        return imdbCache[imdbId];
+    }
+
+    // No OMDb key? Skip gracefully
+    if (!CONFIG.OMDB_API_KEY) {
+        return null;
+    }
+
+    try {
+        const response = await fetch(`${CONFIG.OMDB_BASE}/?apikey=${CONFIG.OMDB_API_KEY}&i=${imdbId}`);
+        const data = await response.json();
+
+        if (data.Response === 'True' && data.imdbRating && data.imdbRating !== 'N/A') {
+            const rating = data.imdbRating;
+            // Cache it forever
+            imdbCache[imdbId] = rating;
+            localStorage.setItem('imdb_ratings', JSON.stringify(imdbCache));
+            return rating;
+        }
+    } catch (error) {
+        console.warn('OMDb API call failed:', error);
+    }
+
+    return null;
 }
 
 // ============================================
@@ -446,6 +491,15 @@ async function showDetails(id, type) {
     const cast = data.credits.cast.slice(0, 10);
     const trailer = data.videos.results.find(v => v.type === 'Trailer' && v.site === 'YouTube');
 
+    // TMDb rating
+    const tmdbRating = data.vote_average.toFixed(1);
+
+    // Fetch IMDb rating (only if we have IMDb ID and OMDb key)
+    let imdbRating = null;
+    if (data.imdb_id && CONFIG.OMDB_API_KEY) {
+        imdbRating = await getIMDbRating(data.imdb_id);
+    }
+
     elements.modalBody.innerHTML = `
         <div class="detail-backdrop" style="background-image: url('${backdropPath}')"></div>
         <div class="detail-content">
@@ -458,7 +512,8 @@ async function showDetails(id, type) {
                         <span>•</span>
                         <span>${runtime} min</span>
                         <span>•</span>
-                        <span class="rating-badge">⭐ ${data.vote_average.toFixed(1)}</span>
+                        <span class="rating-badge tmdb-badge">⭐ ${tmdbRating}</span>
+                        ${imdbRating ? `<span class="rating-badge imdb-badge">IMDb ${imdbRating}</span>` : ''}
                     </div>
                     <div class="detail-genres">${genres}</div>
                     <p class="detail-overview">${data.overview}</p>
